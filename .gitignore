@@ -1,0 +1,32 @@
+# Folder
+*/
+
+# OS Specific File
+.DS_Store
+Thumbs.db
+
+# PowerShell Script
+*.ps1
+!Invoke-ElevatedCommand.ps1
+
+# Batch File
+*.bat
+*.cmd
+
+# Initialization Flie
+*.ini
+
+# Document
+*.doc
+*.docx
+
+# Text
+*.txt
+
+# Markdown
+*.md
+!README.md
+!README_CHS.md
+
+# XML
+*.xml
