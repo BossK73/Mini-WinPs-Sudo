@@ -10,6 +10,8 @@
 
 在新的 Windows PowerShell 会话中执行`sudo`命令。
 
+运行`sudo -h`获取更多帮助。
+
 ## 与 Sudo-for-Windows 共存
 Mini-WinPs-Sudo 将在 Windows PowerShell 上覆盖同名的 Sudo-for-Windows，但由于无法在命令提示符上运行，其对命令提示符中的 Sudo-for-Windows 无影响。
 
@@ -17,6 +19,8 @@ Mini-WinPs-Sudo 将在 Windows PowerShell 上覆盖同名的 Sudo-for-Windows，
 
 ## 版本更新说明
 [V0.0.1](https://github.com/BossK73/Mini-WinPs-Sudo/releases/tag/V0.0.1) 从本地上传已废弃的首个功能测试原型。
+
+[V0.0.2](https://github.com/BossK73/Mini-WinPs-Sudo/releases/tag/V0.0.2) 重构代码，完成功能框架。移除有关命令提示符的无用代码，提高代码模块化程度，增加帮助`-h`、版本`-V`、查询`-l`、保持新窗口`-K`等共计4个参数，改变命令为空时的行为，增加ASCII字符画上色输出特性并优化显示速度。几乎接近正式版。
 
 ## 参考资料
 [about_profiles - Microsoft Learn](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-5.1)
