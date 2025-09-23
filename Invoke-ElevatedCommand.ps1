@@ -2,8 +2,6 @@
 # Copyright (c) 2025 BossK73
 # Licensed under the MIT License
 # 
-# 用于在 Windows 10 与 Windows 11 中以类 Linux 平台 Sudo 体验提升运行单条用户命令的轻量级 Windows PowerShell 5.1 脚本。在命令提示符中不起作用。
-# 
 # 将代码复制到 Windows PowerShell 5.1 的配置文件中，并允许 Windows PowerShell 执行本地脚本，在新的 Windows PowerShell 会话中运行 sudo -h 获取使用帮助。
 # 
 # 如果遭遇显示乱码，可尝试以 UTF8-BOM 编码重新保存 Windows PowerShell 的配置文件。
@@ -15,10 +13,10 @@
 # 有关配置文件和执行策略的描述，请参阅以下链接：
 # https://learn.microsoft.com/zh-cn/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-5.1
 # https://learn.microsoft.com/zh-cn/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1 
-
-# V0.0.3
-# 2025年9月22日
-# 增强代码安全性，减少多处代码的条件判断开销；同时启用-h与-v时忽略-v；添加用于在管理员权限下手动清理临时脚本的-c参数
+#
+# V0.0.4
+# 2025年9月23日
+# 为部分帮助信息添加实验性的中英双语显示特性，暂无向系统路径含特殊字符的区域格式如日语、朝鲜语添加支持的计划
 
 # Main Function
 function Invoke-ElevatedCommand {
@@ -54,8 +52,159 @@ function Invoke-ElevatedCommand {
 
     # Show Sudo CurrentVersion
     function Show-SudoCurrentVersion {
-        [string]$script:SudoCurrentVersion = "V0.0.3 by BossK73@Github"
+        [string]$script:SudoCurrentVersion = "V0.0.4 by BossK73@Github"
         Write-Output $script:SudoCurrentVersion
+    }
+
+    # Sudo i18n Message —— Chinese And English Bilingual Message For Help Information Currently, Japanese And Korean Are NOT Supported
+    $script:SudoHelpMessages = @{
+        "UsageHeader" = @{
+            "zh" = "用法"
+            "en" = "Usage"
+        };
+        "UsageSyntax" = @{
+            "zh" = "  sudo [-h] [-v] [-l] [-c] [-k] [命令]"
+            "en" = "      sudo [-h] [-v] [-l] [-c] [-k] [Command]"
+        };
+        "ParameterHeader" = @{
+            "zh" = "参数"
+            "en" = "Parameter"
+        };
+        "HelpParam" = @{
+            "zh" = "  -h   获取帮助"
+            "en" = "  -h   Get help"
+        };
+        "VersionParam" = @{
+            "zh" = "      -v   显示Sudo的版本号"
+            "en" = "           -v   Show Sudo version"
+        };
+        "ListParam" = @{
+            "zh" = "      -l   列出所有由Sudo静默提升且目前仍在后台运行的任务"
+            "en" = "           -l   List all background running tasks silently elevated by Sudo"
+        };
+        "CleanParam" = @{
+            "zh" = "      -c   手动清理在Sudo静默提升用户命令时创建的临时脚本"
+            "en" = "           -c   Manually clean up temporary scripts created by Sudo when silently elevating user commands"
+        };
+        "KeepNewWindowParam" = @{
+            "zh" = "      -k   保持提升后的新命令行界面，未启用则静默提升`n           启用 -k 参数提升时，Sudo将不会生成临时脚本`n           请为交互式命令启用 -k 参数，避免其提升后一直在后台等待用户输入"
+            "en" = "           -k   Keep the newly elevated CLI; elevate silently if not enabled`n                Enable -k to prevent background waits for interactive commands and temp script when elevating"
+        };
+        "ExampleHeader" = @{
+            "zh" = "示例"
+            "en" = "Example"
+        };
+        "ExampleCommand" = @{
+            "zh" = "  sudo notepad %SystemRoot%\system32\drivers\etc\hosts`n"
+            "en" = "    sudo notepad %SystemRoot%\system32\drivers\etc\hosts`n"
+        }
+        #;"FormatTestMessage" = @{
+            #"zh" = "这是一个带参数的测试消息：{0} 和 {1}"
+            #"en" = "This is a test message with arguments: {0} and {1}"
+        #}
+    }
+
+    # Get Sudo Current Language
+    function Get-SudoCurrentLanguage {
+        if (-not (Get-Variable -Name "isSudoCurrentLanguageChecked" -Scope Global -ErrorAction SilentlyContinue)) {
+            $global:isSudoCurrentLanguageChecked = $false
+            $global:SudoCurrentLanguage = $null
+        }
+        if (-not $global:isSudoCurrentLanguageChecked) {
+            if (([System.Globalization.CultureInfo]::CurrentUICulture.Name).StartsWith("zh", [System.StringComparison]::OrdinalIgnoreCase)) {
+                $global:SudoCurrentLanguage = "zh"
+            } else {
+                try {
+                    $currentUserLanguageList = Get-WinUserLanguageList -ErrorAction SilentlyContinue
+                    if ($currentUserLanguageList -and $currentUserLanguageList.Count -gt 0) {
+                        if (($currentUserLanguageList[0].LanguageTag).StartsWith("zh", [System.StringComparison]::OrdinalIgnoreCase)) {
+                            $global:SudoCurrentLanguage = "zh"
+                        }
+                    } else {
+                        $global:SudoCurrentLanguage = "en"
+                    }
+                } catch {
+                    Write-Verbose "检测语言失败，将回退至英语: $($_.Exception.Message)"
+                    $global:SudoCurrentLanguage = "en"
+                }
+            }
+            $global:isSudoCurrentLanguageChecked = $true
+        }
+        return $global:SudoCurrentLanguage
+    }
+
+    # Show Sudo i18n Message
+    function Show-SudoLocalizedMessage {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory = $true, Position = 0)]
+            [string]$MessageIdentifier,
+            [Parameter(Mandatory = $false)]
+            [ValidateSet("Host", "Output", "Verbose", "Warning", "Error")]
+            [string]$MessageType = "Host",
+            [Parameter(Mandatory = $false)]
+            [ConsoleColor]$ForegroundColor,
+            [Parameter(Mandatory = $false)]
+            [switch]$NoNewline,
+            [Parameter(Mandatory = $false)]
+            [object[]]$Arguments
+        )
+        try {
+            $messageMap = $script:SudoHelpMessages[$MessageIdentifier]
+            if (-not $messageMap) {
+                Write-Warning "MessageIdentifier '$MessageIdentifier' not found. Please check the code integrity of Sudo"
+                return
+            }
+            $localizedMessage = $messageMap[$(Get-SudoCurrentLanguage)]
+            if (-not $localizedMessage) {
+                Write-Verbose "MessageIdentifier '$MessageIdentifier' 在当前语言 '$global:SudoCurrentLanguage' 中无翻译，回退至英语"
+                $localizedMessage = $messageMap["en"]
+            }
+            if (-not $localizedMessage) {
+                Write-Warning "MessageIdentifier '$MessageIdentifier' has no English translation. Please check the code integrity of Sudo"
+                return
+            }
+            $needsFormatting = $localizedMessage -match '\{\d+\}'
+            if ($needsFormatting) {
+                if ($Arguments) {
+                    try {
+                        $localizedMessage = $localizedMessage -f $Arguments
+                    } catch {
+                        Write-Warning "MessageIdentifier '$MessageIdentifier' 的消息格式化参数不匹配。原始消息：'$localizedMessage'。错误：$($_.Exception.Message)"
+                    }
+                } else {
+                    Write-Warning "MessageIdentifier '$MessageIdentifier' 需要格式化参数但未提供。原始消息：'$localizedMessage'"
+                }
+            } elseif ($Arguments) {
+                Write-Verbose "MessageIdentifier '$MessageIdentifier' 不需要格式化参数，但提供了参数，这些参数将被忽略。原始消息：'$localizedMessage'"
+            }
+            switch ($MessageType) {
+                "Host" {
+                    $hostParams = @{}
+                    if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $hostParams.Add('ForegroundColor', $ForegroundColor) }
+                    if ($PSBoundParameters.ContainsKey('NoNewline')) { $hostParams.Add('NoNewline', $NoNewline) }
+                    Write-Host $localizedMessage @hostParams
+                }
+                "Output" {
+                    Write-Output $localizedMessage
+                }
+                "Verbose" {
+                    Write-Verbose $localizedMessage
+                }
+                "Warning" {
+                    Write-Warning $localizedMessage
+                }
+                "Error" {
+                    Write-Error $localizedMessage
+                }
+                default {
+                    Write-Verbose "不支持的 MessageType '$MessageType'，默认回退至 Write-Host"
+                    Write-Host $localizedMessage
+                }
+            }
+        } catch {
+            Write-Error "Show-SudoLocalizedMessage 出错：$($_.Exception.Message)。MessageIdentifier: '$MessageIdentifier'"
+        }
     }
 
     # Get Sudo Current Admin Role
@@ -99,11 +248,11 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
         ___\///////////________\/////////_____\////////////__________\/////_______
 '@
         # Coloring
-        $SudoAsciiArtScriptBuilder = New-Object System.Text.StringBuilder(8192) # Number 7886 was calculated again by Gemini 2.5 Flash
+        $SudoAsciiArtScriptBuilder = New-Object System.Text.StringBuilder(8192) # Number 7886 Was Calculated Again By Gemini 2.5 Flash
         $null = $SudoAsciiArtScriptBuilder.Append("Write-Host '`n';")
         $lines = $slantReliefStyleSudoAsciiArt -split "`n"
         foreach ($line in $lines) {
-            $charColorMap = [System.Collections.Generic.List[PSCustomObject]]::new(128) # Number 73 was calculated by Gemini 2.5 Flash
+            $charColorMap = [System.Collections.Generic.List[PSCustomObject]]::new(128) # Number 73 Was Calculated By Gemini 2.5 Flash
             $i = 0
             $lineLength = $line.Length
             $processed = [bool[]]::new($lineLength)
@@ -114,27 +263,27 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
                 }
                 # "_\//"
                 if ($i + 3 -lt $lineLength -and $line[$i] -eq '_' -and $line[$i+1] -eq '\' -and $line[$i+2] -eq '/' -and $line[$i+3] -eq '/') {
-                    $charColorMap.Add([PSCustomObject]@{Char = $line[$i]; Color = $BaseColor})
-                    $charColorMap.Add([PSCustomObject]@{Char = $line[$i+1]; Color = $LeftColor})
-                    $charColorMap.Add([PSCustomObject]@{Char = $line[$i+2]; Color = $BottomColor})
-                    $charColorMap.Add([PSCustomObject]@{Char = $line[$i+3]; Color = $BottomColor})
+                    $charColorMap.Add([PSCustomObject]@{ Char = $line[$i]; Color = $BaseColor })
+                    $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+1]; Color = $LeftColor })
+                    $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+2]; Color = $BottomColor })
+                    $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+3]; Color = $BottomColor })
                     ($i..($i+3)) | ForEach-Object { $processed[$_] = $true }
                     $i += 4
                     continue
                 # "_\/\"
                 } elseif ($i + 3 -lt $lineLength -and $line[$i] -eq '_' -and $line[$i+1] -eq '\' -and $line[$i+2] -eq '/' -and $line[$i+3] -eq '\') {
-                    $charColorMap.Add([PSCustomObject]@{Char = $line[$i]; Color = $BaseColor})
-                    $charColorMap.Add([PSCustomObject]@{Char = $line[$i+1]; Color = $LeftColor})
-                    $charColorMap.Add([PSCustomObject]@{Char = $line[$i+2]; Color = $LeftColor})
-                    $charColorMap.Add([PSCustomObject]@{Char = $line[$i+3]; Color = $TopColor})
+                    $charColorMap.Add([PSCustomObject]@{ Char = $line[$i]; Color = $BaseColor })
+                    $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+1]; Color = $LeftColor })
+                    $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+2]; Color = $LeftColor })
+                    $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+3]; Color = $TopColor })
                     ($i..($i+3)) | ForEach-Object { $processed[$_] = $true }
                     $i += 4
                     continue
                 # "_/\"
                 } elseif ($i + 2 -lt $lineLength -and $line[$i] -eq '_' -and $line[$i+1] -eq '/' -and $line[$i+2] -eq '\') {
-                    $charColorMap.Add([PSCustomObject]@{Char = $line[$i]; Color = $BaseColor})
-                    $charColorMap.Add([PSCustomObject]@{Char = $line[$i+1]; Color = $LeftColor})
-                    $charColorMap.Add([PSCustomObject]@{Char = $line[$i+2]; Color = $TopColor})
+                    $charColorMap.Add([PSCustomObject]@{ Char = $line[$i]; Color = $BaseColor })
+                    $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+1]; Color = $LeftColor })
+                    $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+2]; Color = $TopColor })
                     ($i..($i+2)) | ForEach-Object { $processed[$_] = $true }
                     $i += 3
                     continue
@@ -151,14 +300,14 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
                     } else {
                         $segmentColor = [ConsoleColor]::Black
                     }
-                    $charColorMap.Add([PSCustomObject]@{Char = $currentChar; Color = $segmentColor})
+                    $charColorMap.Add([PSCustomObject]@{ Char = $currentChar; Color = $segmentColor })
                     $processed[$i] = $true
                     $i += 1
                 }
             }
             # Merge Consecutive Characters With The Same Color 
             [ConsoleColor]$currentGroupColor = [ConsoleColor]::Black
-            $currentGroupText = [System.Text.StringBuilder]::new(16) # Number 12 was calculated by Gemini 2.5 Flash
+            $currentGroupText = [System.Text.StringBuilder]::new(16) # Number 12 Was Calculated By Gemini 2.5 Flash
             foreach ($charInfo in $charColorMap) {
                 if ($currentGroupText.Length -eq 0) {
                     $null = $currentGroupText.Append($charInfo.Char)
@@ -225,7 +374,7 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
         Invoke-Expression $global:SudoAsciiArtScript
         # Show Sudo Current Status
         Write-Host "适用于 Windows PowerShell 5.1 的 Sudo $(Show-SudoCurrentVersion)`n可以从本地非管理员会话启动新窗口以提升执行单条用户命令，请确保您要执行的命令安全可信"
-        Write-Host "Sudo is tested only on Chinese locale systems.`nIf text appears garbled, try resaving your PowerShell profile with UTF8-BOM encoding"
+        Write-Host "Sudo has been tested only on Chinese locale systems`nIf text appears garbled, try resaving your PowerShell profile with UTF8-BOM encoding" -ForegroundColor DarkGray
         # Get Sudo Running Platform Compatibility
         if (-not (Get-Variable -Name "isSudoRunningOnTargetPlatformChecked" -Scope Global -ErrorAction SilentlyContinue)) {
             $global:isSudoRunningOnTargetPlatformChecked = $false
@@ -245,16 +394,16 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
         # Show Sudo Current User
         Write-Host "当前会话$($sudoHelpAdminStatus)取得管理员权限" -ForegroundColor $sudoHelpHeaderColor
         # Show Sudo Usage
-        Write-Host "用法" -NoNewline -ForegroundColor $sudoHelpHeaderColor
-        Write-Host "  sudo [-h] [-v] [-l] [-c] [-k] [Command]"
-        Write-Host "参数" -NoNewline -ForegroundColor $sudoHelpHeaderColor
-        Write-Host "  -h   获取帮助"
-        Write-Host "      -v   显示Sudo的版本号"
-        Write-Host "      -l   列出所有由Sudo静默提升且目前仍在后台运行的任务"
-        Write-Host "      -c   手动清理在Sudo静默提升用户命令时创建的临时脚本"
-        Write-Host "      -k   保持提升后的新命令行界面，未启用则静默提升`n           启用 -k 参数提升时，Sudo将不会生成临时脚本`n           请为交互式命令启用 -k 参数，避免其提升后一直在后台等待用户输入"
-        Write-Host "示例" -NoNewline -ForegroundColor $sudoHelpHeaderColor
-        Write-Host "  sudo notepad %SystemRoot%\system32\drivers\etc\hosts`n" 
+        Show-SudoLocalizedMessage -MessageIdentifier "UsageHeader" -NoNewline -ForegroundColor $sudoHelpHeaderColor
+        Show-SudoLocalizedMessage -MessageIdentifier "UsageSyntax"
+        Show-SudoLocalizedMessage -MessageIdentifier "ParameterHeader" -NoNewline -ForegroundColor $sudoHelpHeaderColor
+        Show-SudoLocalizedMessage -MessageIdentifier "HelpParam"
+        Show-SudoLocalizedMessage -MessageIdentifier "VersionParam"
+        Show-SudoLocalizedMessage -MessageIdentifier "ListParam"
+        Show-SudoLocalizedMessage -MessageIdentifier "CleanParam"
+        Show-SudoLocalizedMessage -MessageIdentifier "KeepNewWindowParam"
+        Show-SudoLocalizedMessage -MessageIdentifier "ExampleHeader" -NoNewline -ForegroundColor $sudoHelpHeaderColor
+        Show-SudoLocalizedMessage -MessageIdentifier "ExampleCommand" 
     }
 
     # Cteate Unique Sudo Temp File
@@ -283,8 +432,7 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
                     Write-Warning "无法清理可能残留的原始临时文件 '$initialTempFilePath'：$($_.Exception.Message)。可能存在残留"
                 }
             }
-            $newGuid = New-Guid
-            $fallbackPs1FileName = "${newGuid}_sudo_.ps1"
+            $fallbackPs1FileName = "$(New-Guid)_sudo_.ps1"
             $fallbackPs1Path = [System.IO.Path]::Combine($tempDir, $fallbackPs1FileName)
             try {
                 [System.IO.File]::WriteAllText($fallbackPs1Path, "")
@@ -485,7 +633,7 @@ try {
     `$decodedUserCommand = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('$encodedUserCommandBase64'));
     Invoke-Expression ([System.Environment]::ExpandEnvironmentVariables(`$decodedUserCommand));
 } catch {
-    Write-Error "执行传递的命令序列时出错: `$(`$_.Exception.Message)`";
+    Write-Error "Error occurred while executing the passed command sequence: `$(`$_.Exception.Message)`";
     exit 1;
 }
 "@
@@ -511,9 +659,9 @@ Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
         if (Test-Path -Path `$Path) {
             try {
                 Remove-Item -Path `$Path -Force -ErrorAction SilentlyContinue
-                Write-Verbose "已成功删除临时文件: `$Path"
+                Write-Verbose "Temporary files have been successfully deleted: `$Path"
             } catch {
-                # Write-Warning "无法删除临时文件 '`$Path': `$(`$_.Exception.Message)`"
+                # Write-Warning "Unable to delete temporary files '`$Path': `$(`$_.Exception.Message)`"
             }
         }
     }
@@ -525,7 +673,7 @@ try {
     `$decodedUserCommand = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(`$EncodedUserCommandBase64));
     Invoke-Expression ([System.Environment]::ExpandEnvironmentVariables(`$decodedUserCommand));
 } catch {
-    Write-Error "初始化命令序列时出错: `$(`$_.Exception.Message)`"
+    Write-Error "Error occurred during command sequence initialization: `$(`$_.Exception.Message)`"
     exit 1;
 }
 "@

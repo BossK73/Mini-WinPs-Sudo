@@ -27,6 +27,8 @@ Mini-WinPs-Sudo 将在 Windows PowerShell 上覆盖同名的 Sudo-for-Windows，
 
 [V0.0.3](https://github.com/BossK73/Mini-WinPs-Sudo/releases/tag/V0.0.3) 增强安全性，减少条件判断开销，新增用于手动清理临时文件的`-c`参数。
 
+[V0.0.4](https://github.com/BossK73/Mini-WinPs-Sudo/releases/tag/V0.0.4) 向部分帮助信息添加实验性的中英双语显示特性，暂无向系统路径含特殊字符的区域格式如日语、朝鲜语添加支持的计划。
+
 ## 参考资料
 [about_profiles - Microsoft Learn](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-5.1)
 
@@ -36,4 +38,4 @@ Mini-WinPs-Sudo 将在 Windows PowerShell 上覆盖同名的 Sudo-for-Windows，
 Mini-WinPs-Sudo 采用 MIT 许可。
 
 ## AI 辅助编码说明
-本项目的某些组成部分已经或将会由包括但不限于 Gemini Flash、Github Copilot、Deepseek Reasoner 及 Doubao Seed Thinking 等大语言模型及 Agent 辅助编码。
+本项目的某些组成代码及工作流程已经或将会由包括但不限于 Gemini 2.5 Flash、Github Copilot、Deepseek Reasoner 及 Doubao Seed Thinking 等大语言模型及 Agent 辅助。

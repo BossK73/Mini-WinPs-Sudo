@@ -27,6 +27,8 @@ Therefore, you can use Sudo-for-Windows in Command Prompt as usual and use Mini-
 
 [V0.0.3](https://github.com/BossK73/Mini-WinPs-Sudo/releases/tag/V0.0.3) Enhance security, reduce conditional judgment overhead and add the `-c` parameter to manually clean up temporary files.
 
+[V0.0.4](https://github.com/BossK73/Mini-WinPs-Sudo/releases/tag/V0.0.4) Introduce experimental Chinese and English bilingual dispaly feature for certain help information. There are currently no plans to add support for locale formats with special characters in their system paths such as Japanese and Korean.
+
 ## Reference
 [about_profiles - Microsoft Learn](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-5.1)
 
@@ -36,4 +38,4 @@ Therefore, you can use Sudo-for-Windows in Command Prompt as usual and use Mini-
 Mini-WinPs-Sudo project is licensed under the MIT License.
 
 ## AI-assisted Coding
-Certain components of this project have been or will be developed with the assistance of large language models and agents, including but not limited to Gemini Flash, GitHub Copilot, Deepseek Reasoner, and Doubao Seed Thinking.
+Certain components and workflows of this project have been or will be assisted by large language models and agents, including but not limited to Gemini 2.5 Flash, GitHub Copilot, Deepseek Reasoner, and Doubao Seed Thinking.
