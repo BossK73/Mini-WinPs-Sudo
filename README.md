@@ -1,6 +1,8 @@
 # Mini-WinPs-Sudo  
 [简体中文](https://github.com/BossK73/Mini-WinPs-Sudo/blob/main/README_CHS.md)
 
+![image](https://github.com/BossK73/Mini-WinPs-Sudo/blob/main/Pictures4Readme/Run_Sudo_h_V0.0.5.png)
+
 ## Introduction
 A lightweight Linux-sudo-like Windows PowerShell 5.1 script getting elevated privileges for one command each time in Windows 10 and Windows 11.
 
@@ -9,11 +11,9 @@ Unavailable for Command Prompt.
 ## Uasge
 Change execution policy to allow Windows PowerShell script, then copy the content of `Invoke-ElevatedCommand.ps1` to your Windows PowerShell profile.
 
-Start one command with `sudo` in a new Windows PowerShell session.
+Open a new Windows PowerShell session, add `sudo` before commands requiring elevation, or execute `sudo -h` to view usage and help information.
 
-Run `sudo -h` for more information.
-
-Sudo is tested only on Chinese locale systems. If text appears garbled, try resaving your PowerShell profile with UTF8-BOM encoding.
+Sudo has been tested only on Chinese locale systems. If text appears garbled, try resaving your PowerShell profile with UTF8-BOM encoding.
 
 ## Coexist with Sudo-for-Windows
 Mini-WinPs-Sudo will override Sudo-for-Windows in Windows PowerShell due to the same command name, but has no influence on Sudo-for-Windows in Command Prompt since it does NOT work in Command Prompt. 
@@ -28,6 +28,8 @@ Therefore, you can use Sudo-for-Windows in Command Prompt as usual and use Mini-
 [V0.0.3](https://github.com/BossK73/Mini-WinPs-Sudo/releases/tag/V0.0.3) Enhance security, reduce conditional judgment overhead and add the `-c` parameter to manually clean up temporary files.
 
 [V0.0.4](https://github.com/BossK73/Mini-WinPs-Sudo/releases/tag/V0.0.4) Introduce experimental Chinese and English bilingual dispaly feature for certain help information. There are currently no plans to add support for locale formats with special characters in their system paths such as Japanese and Korean.
+
+[V0.0.5](https://github.com/BossK73/Mini-WinPs-Sudo/releases/tag/V0.0.5) Use a centralized hash table to store and initialize state and data cache, reduce conditional judgment overhead; add bilingual support for three specific messages; remove the unused array. In previous versions, when a non-administrator user executed `sudo` alone, the script would attempt to elevate a new Windows Terminal; otherwise, it would fall back to powershell.exe. In this version, if the user cancels the operation, the script will no longer attempt to fall back but will exit directly, avoiding unnecessary UAC prompts.
 
 ## Reference
 [about_profiles - Microsoft Learn](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-5.1)

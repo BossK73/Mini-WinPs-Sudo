@@ -1,6 +1,9 @@
-# Mini-WinPs-Sudo
+﻿# Mini-WinPs-Sudo
 # Copyright (c) 2025 BossK73
 # Licensed under the MIT License
+# https://github.com/BossK73/Mini-WinPs-Sudo
+# 
+# 用于在 Windows 10 与 Windows 11 中以类 Linux 平台 Sudo 体验提升运行单条用户命令的 Windows PowerShell 5.1 脚本。无法在命令提示符中使用。
 # 
 # 将代码复制到 Windows PowerShell 5.1 的配置文件中，并允许 Windows PowerShell 执行本地脚本，在新的 Windows PowerShell 会话中运行 sudo -h 获取使用帮助。
 # 
@@ -12,11 +15,88 @@
 # 
 # 有关配置文件和执行策略的描述，请参阅以下链接：
 # https://learn.microsoft.com/zh-cn/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-5.1
-# https://learn.microsoft.com/zh-cn/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1 
-#
-# V0.0.4
-# 2025年9月23日
-# 为部分帮助信息添加实验性的中英双语显示特性，暂无向系统路径含特殊字符的区域格式如日语、朝鲜语添加支持的计划
+# https://learn.microsoft.com/zh-cn/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1
+# 
+# V0.0.5
+# 2025年10月3日
+# 使用集中的哈希表储存并初始化状态及数据缓存，减少条件判断次数；为三处特定的消息添加了双语支持；移除Get-SudoAsciiArtScript函数中无用的$processed；非管理员仅执行sudo时，若检测到wt但用户取消了操作，直接退出
+
+# Sudo State Cache Hashtable
+if (-not (Get-Variable -Name "SudoState" -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:SudoState = @{
+        "SudoCurrentVersion" = "V0.0.5 by BossK73@Github";
+        "isSudoCurrentLanguageChecked" = $false;
+        "SudoCurrentLanguage" = $null;
+        "isSudoRunningAsAdminChecked" = $false;
+        "isSudoRunningAsAdmin" = $false;
+        "isSudoAsciiArtScriptBuilt" = $false;
+        "SudoAsciiArtScript" = $null;
+        "isSudoRunningOnTargetPlatformChecked" = $false;
+        "isSudoRunningOnTargetPlatform" = $false;
+        "isSudoWindowsTerminalExistenceChecked" = $false;
+        "isSudoWindowsTerminalExisted" = $false;
+    }
+}
+
+# Sudo i18n Message —— Chinese And English Bilingual Message For Certain Information Currently, Japanese And Korean Are NOT Supported
+$script:SudoHelpMessages = @{
+    "UsageHeader" = @{
+        "zh" = "用法"
+        "en" = "Usage"
+    };
+    "UsageSyntax" = @{
+        "zh" = "  sudo [-h] [-v] [-l] [-c] [-k] [命令]"
+        "en" = "      sudo [-h] [-v] [-l] [-c] [-k] [Command]"
+    };
+    "ParameterHeader" = @{
+        "zh" = "参数"
+        "en" = "Parameter"
+    };
+    "HelpParam" = @{
+        "zh" = "  -h   获取帮助"
+        "en" = "  -h   Get help"
+    };
+    "VersionParam" = @{
+        "zh" = "      -v   显示Sudo的版本号"
+        "en" = "           -v   Show Sudo version"
+    };
+    "ListParam" = @{
+        "zh" = "      -l   列出所有由Sudo静默提升且目前仍在后台运行的任务"
+        "en" = "           -l   List all background running tasks silently elevated by Sudo"
+    };
+    "CleanParam" = @{
+        "zh" = "      -c   手动清理在Sudo静默提升用户命令时创建的临时脚本"
+        "en" = "           -c   Manually clean up temporary scripts created by Sudo when silently elevating user commands"
+    };
+    "KeepNewWindowParam" = @{
+        "zh" = "      -k   保持提升后的新命令行界面，未启用则静默提升`n           启用 -k 参数提升时，Sudo将不会生成临时脚本`n           请为交互式命令启用 -k 参数，避免其提升后一直在后台等待用户输入"
+        "en" = "           -k   Keep the newly elevated CLI; elevate silently if not enabled`n                Enable -k to prevent background waits for interactive commands and temp script when elevating"
+    };
+    "ExampleHeader" = @{
+        "zh" = "示例"
+        "en" = "Example"
+    };
+    "ExampleCommand" = @{
+        "zh" = "  sudo notepad %SystemRoot%\system32\drivers\etc\hosts`n"
+        "en" = "    sudo notepad %SystemRoot%\system32\drivers\etc\hosts`n"
+    };
+    "CancellationMessage" = @{
+        "zh" = "用户取消了提升空白命令行的操作，运行sudo -h获取帮助"
+        "en" = "User canceled the elevation of a blank command line. Run sudo -h for help."
+    };
+    "FallBackWarning" = @{
+        "zh" = "回退至提升的powershell.exe，等待用户重新批准"
+        "en" = "Falling back to elevated powershell.exe, awaiting user reauthorization."
+    };
+    "AdminApprovalRequired4AuxiliaryOperationsMessage" = @{
+        "zh" = "等待用户批准管理员权限以继续查询或清理操作"
+        "en" = "Waiting for user approval of administrator privileges to proceed with query or cleanup operations."
+    }
+    #;"FormatTestMessage" = @{
+        #"zh" = "这是一个带参数的测试消息：{0} 和 {1}"
+        #"en" = "This is a test message with arguments: {0} and {1}"
+    #}
+}
 
 # Main Function
 function Invoke-ElevatedCommand {
@@ -52,85 +132,34 @@ function Invoke-ElevatedCommand {
 
     # Show Sudo CurrentVersion
     function Show-SudoCurrentVersion {
-        [string]$script:SudoCurrentVersion = "V0.0.4 by BossK73@Github"
-        Write-Output $script:SudoCurrentVersion
-    }
-
-    # Sudo i18n Message —— Chinese And English Bilingual Message For Help Information Currently, Japanese And Korean Are NOT Supported
-    $script:SudoHelpMessages = @{
-        "UsageHeader" = @{
-            "zh" = "用法"
-            "en" = "Usage"
-        };
-        "UsageSyntax" = @{
-            "zh" = "  sudo [-h] [-v] [-l] [-c] [-k] [命令]"
-            "en" = "      sudo [-h] [-v] [-l] [-c] [-k] [Command]"
-        };
-        "ParameterHeader" = @{
-            "zh" = "参数"
-            "en" = "Parameter"
-        };
-        "HelpParam" = @{
-            "zh" = "  -h   获取帮助"
-            "en" = "  -h   Get help"
-        };
-        "VersionParam" = @{
-            "zh" = "      -v   显示Sudo的版本号"
-            "en" = "           -v   Show Sudo version"
-        };
-        "ListParam" = @{
-            "zh" = "      -l   列出所有由Sudo静默提升且目前仍在后台运行的任务"
-            "en" = "           -l   List all background running tasks silently elevated by Sudo"
-        };
-        "CleanParam" = @{
-            "zh" = "      -c   手动清理在Sudo静默提升用户命令时创建的临时脚本"
-            "en" = "           -c   Manually clean up temporary scripts created by Sudo when silently elevating user commands"
-        };
-        "KeepNewWindowParam" = @{
-            "zh" = "      -k   保持提升后的新命令行界面，未启用则静默提升`n           启用 -k 参数提升时，Sudo将不会生成临时脚本`n           请为交互式命令启用 -k 参数，避免其提升后一直在后台等待用户输入"
-            "en" = "           -k   Keep the newly elevated CLI; elevate silently if not enabled`n                Enable -k to prevent background waits for interactive commands and temp script when elevating"
-        };
-        "ExampleHeader" = @{
-            "zh" = "示例"
-            "en" = "Example"
-        };
-        "ExampleCommand" = @{
-            "zh" = "  sudo notepad %SystemRoot%\system32\drivers\etc\hosts`n"
-            "en" = "    sudo notepad %SystemRoot%\system32\drivers\etc\hosts`n"
-        }
-        #;"FormatTestMessage" = @{
-            #"zh" = "这是一个带参数的测试消息：{0} 和 {1}"
-            #"en" = "This is a test message with arguments: {0} and {1}"
-        #}
+        Write-Output $script:SudoState.SudoCurrentVersion
     }
 
     # Get Sudo Current Language
     function Get-SudoCurrentLanguage {
-        if (-not (Get-Variable -Name "isSudoCurrentLanguageChecked" -Scope Global -ErrorAction SilentlyContinue)) {
-            $global:isSudoCurrentLanguageChecked = $false
-            $global:SudoCurrentLanguage = $null
-        }
-        if (-not $global:isSudoCurrentLanguageChecked) {
+        if (-not $script:SudoState.isSudoCurrentLanguageChecked) {
             if (([System.Globalization.CultureInfo]::CurrentUICulture.Name).StartsWith("zh", [System.StringComparison]::OrdinalIgnoreCase)) {
-                $global:SudoCurrentLanguage = "zh"
+                $script:SudoState.SudoCurrentLanguage = "zh"
             } else {
                 try {
                     $currentUserLanguageList = Get-WinUserLanguageList -ErrorAction SilentlyContinue
                     if ($currentUserLanguageList -and $currentUserLanguageList.Count -gt 0) {
                         if (($currentUserLanguageList[0].LanguageTag).StartsWith("zh", [System.StringComparison]::OrdinalIgnoreCase)) {
-                            $global:SudoCurrentLanguage = "zh"
+                            $script:SudoState.SudoCurrentLanguage = "zh"
+                        } else {
+                            $script:SudoState.SudoCurrentLanguage = "en"
                         }
                     } else {
-                        $global:SudoCurrentLanguage = "en"
+                        $script:SudoState.SudoCurrentLanguage = "en"
                     }
                 } catch {
                     Write-Verbose "检测语言失败，将回退至英语: $($_.Exception.Message)"
-                    $global:SudoCurrentLanguage = "en"
+                    $script:SudoState.SudoCurrentLanguage = "en"
                 }
             }
-            $global:isSudoCurrentLanguageChecked = $true
+            $script:SudoState.isSudoCurrentLanguageChecked = $true
         }
-        return $global:SudoCurrentLanguage
+        return $script:SudoState.SudoCurrentLanguage
     }
 
     # Show Sudo i18n Message
@@ -157,7 +186,7 @@ function Invoke-ElevatedCommand {
             }
             $localizedMessage = $messageMap[$(Get-SudoCurrentLanguage)]
             if (-not $localizedMessage) {
-                Write-Verbose "MessageIdentifier '$MessageIdentifier' 在当前语言 '$global:SudoCurrentLanguage' 中无翻译，回退至英语"
+                Write-Verbose "MessageIdentifier '$MessageIdentifier' 在当前语言 '$script:SudoState.SudoCurrentLanguage' 中无翻译，回退至英语"
                 $localizedMessage = $messageMap["en"]
             }
             if (-not $localizedMessage) {
@@ -203,23 +232,19 @@ function Invoke-ElevatedCommand {
                 }
             }
         } catch {
-            Write-Error "Show-SudoLocalizedMessage 出错：$($_.Exception.Message)。MessageIdentifier: '$MessageIdentifier'"
+            Write-Error "Show-SudoLocalizedMessage 出错：$($_.Exception.Message) MessageIdentifier: '$MessageIdentifier'"
         }
     }
 
     # Get Sudo Current Admin Role
     function Get-SudoCurrentAdminRole {
-        if (-not (Get-Variable -Name "isSudoRunningAsAdminChecked" -Scope Global -ErrorAction SilentlyContinue)) {
-            $global:isSudoRunningAsAdminChecked = $false
-            $global:isSudoRunningAsAdmin = $false
-        }
-        if (-not $global:isSudoRunningAsAdminChecked) {
-            $global:isSudoRunningAsAdmin = (
+        if (-not $script:SudoState.isSudoRunningAsAdminChecked) {
+            $script:SudoState.isSudoRunningAsAdmin = (
                 [Security.Principal.WindowsPrincipal]([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator
             )
-            $global:isSudoRunningAsAdminChecked = $true
+            $script:SudoState.isSudoRunningAsAdminChecked = $true
         }
-        return $global:isSudoRunningAsAdmin
+        return $script:SudoState.isSudoRunningAsAdmin
     }
 
     # Get Sudo Ascii Art Script
@@ -255,19 +280,13 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
             $charColorMap = [System.Collections.Generic.List[PSCustomObject]]::new(128) # Number 73 Was Calculated By Gemini 2.5 Flash
             $i = 0
             $lineLength = $line.Length
-            $processed = [bool[]]::new($lineLength)
             while ($i -lt $lineLength) {
-                if ($processed[$i]) {
-                    $i++
-                    continue
-                }
                 # "_\//"
                 if ($i + 3 -lt $lineLength -and $line[$i] -eq '_' -and $line[$i+1] -eq '\' -and $line[$i+2] -eq '/' -and $line[$i+3] -eq '/') {
                     $charColorMap.Add([PSCustomObject]@{ Char = $line[$i]; Color = $BaseColor })
                     $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+1]; Color = $LeftColor })
                     $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+2]; Color = $BottomColor })
                     $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+3]; Color = $BottomColor })
-                    ($i..($i+3)) | ForEach-Object { $processed[$_] = $true }
                     $i += 4
                     continue
                 # "_\/\"
@@ -276,7 +295,6 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
                     $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+1]; Color = $LeftColor })
                     $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+2]; Color = $LeftColor })
                     $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+3]; Color = $TopColor })
-                    ($i..($i+3)) | ForEach-Object { $processed[$_] = $true }
                     $i += 4
                     continue
                 # "_/\"
@@ -284,7 +302,6 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
                     $charColorMap.Add([PSCustomObject]@{ Char = $line[$i]; Color = $BaseColor })
                     $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+1]; Color = $LeftColor })
                     $charColorMap.Add([PSCustomObject]@{ Char = $line[$i+2]; Color = $TopColor })
-                    ($i..($i+2)) | ForEach-Object { $processed[$_] = $true }
                     $i += 3
                     continue
                 # Others
@@ -301,8 +318,8 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
                         $segmentColor = [ConsoleColor]::Black
                     }
                     $charColorMap.Add([PSCustomObject]@{ Char = $currentChar; Color = $segmentColor })
-                    $processed[$i] = $true
                     $i += 1
+                    continue
                 }
             }
             # Merge Consecutive Characters With The Same Color 
@@ -349,11 +366,6 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
         $UserSudoAsciiArtTopColor = [ConsoleColor]::Cyan
         $UserSudoAsciiArtBottomColor = [ConsoleColor]::Blue
         $UserSudoAsciiArtLeftColor = [ConsoleColor]::DarkBlue
-        # Check ASCII Art Cache
-        if (-not (Get-Variable -Name "isSudoAsciiArtScriptBuilt" -Scope Global -ErrorAction SilentlyContinue)) {
-            [bool]$global:isSudoAsciiArtScriptBuilt = $false
-            [string]$global:SudoAsciiArtScript = $null
-        }
         # Check Current Role
         if (Get-SudoCurrentAdminRole) {
             $sudoHelpHeaderColor = $AdminSudoAsciiArtTopColor
@@ -362,33 +374,30 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
             $sudoHelpHeaderColor = $UserSudoAsciiArtTopColor
             $sudoHelpAdminStatus = "未"
         }
-        if (-not $global:isSudoAsciiArtScriptBuilt) {
-            # $global:isSudoRunningAsAdmin = $(Get-SudoCurrentAdminRole)
-            if ($global:isSudoRunningAsAdmin) {
-                $global:SudoAsciiArtScript = (Get-SudoAsciiArtScript -BaseColor $AdminSudoAsciiArtBaseColor -TopColor $AdminSudoAsciiArtTopColor -BottomColor $AdminSudoAsciiArtBottomColor -LeftColor $AdminSudoAsciiArtLeftColor)
+        # Check ASCII Art Cache
+        if (-not $script:SudoState.isSudoAsciiArtScriptBuilt) {
+            # $script:SudoState.isSudoAsciiArtScriptBuilt = $(Get-SudoCurrentAdminRole)
+            if ($script:SudoState.isSudoRunningAsAdmin) {
+                $script:SudoState.SudoAsciiArtScript = (Get-SudoAsciiArtScript -BaseColor $AdminSudoAsciiArtBaseColor -TopColor $AdminSudoAsciiArtTopColor -BottomColor $AdminSudoAsciiArtBottomColor -LeftColor $AdminSudoAsciiArtLeftColor)
             } else {
-                $global:SudoAsciiArtScript = (Get-SudoAsciiArtScript -BaseColor $UserSudoAsciiArtBaseColor -TopColor $UserSudoAsciiArtTopColor -BottomColor $UserSudoAsciiArtBottomColor -LeftColor $UserSudoAsciiArtLeftColor)
+                $script:SudoState.SudoAsciiArtScript = (Get-SudoAsciiArtScript -BaseColor $UserSudoAsciiArtBaseColor -TopColor $UserSudoAsciiArtTopColor -BottomColor $UserSudoAsciiArtBottomColor -LeftColor $UserSudoAsciiArtLeftColor)
             }
-            $global:isSudoAsciiArtScriptBuilt = $true
+            $script:SudoState.isSudoAsciiArtScriptBuilt = $true
         }
-        Invoke-Expression $global:SudoAsciiArtScript
+        Invoke-Expression $script:SudoState.SudoAsciiArtScript
         # Show Sudo Current Status
         Write-Host "适用于 Windows PowerShell 5.1 的 Sudo $(Show-SudoCurrentVersion)`n可以从本地非管理员会话启动新窗口以提升执行单条用户命令，请确保您要执行的命令安全可信"
         Write-Host "Sudo has been tested only on Chinese locale systems`nIf text appears garbled, try resaving your PowerShell profile with UTF8-BOM encoding" -ForegroundColor DarkGray
         # Get Sudo Running Platform Compatibility
-        if (-not (Get-Variable -Name "isSudoRunningOnTargetPlatformChecked" -Scope Global -ErrorAction SilentlyContinue)) {
-            $global:isSudoRunningOnTargetPlatformChecked = $false
-            $global:isSudoRunningOnTargetPlatform = $false
-        }
-        if (-not $global:isSudoRunningOnTargetPlatformChecked) {
-            $global:isSudoRunningOnTargetPlatform = (
+        if (-not $script:SudoState.isSudoRunningOnTargetPlatformChecked) {
+            $script:SudoState.isSudoRunningOnTargetPlatform = (
                 $PSVersionTable.PSVersion.Major -eq 5 -and
                 $PSVersionTable.PSVersion.Minor -eq 1 -and 
                 $PSVersionTable.PSEdition -eq "Desktop"
             )
-            $global:isSudoRunningOnTargetPlatformChecked = $true
+            $script:SudoState.isSudoRunningOnTargetPlatformChecked = $true
         }
-        if (-not $global:isSudoRunningOnTargetPlatform) {
+        if (-not $script:SudoState.isSudoRunningOnTargetPlatform) {
             Write-Warning "Sudo 正运行在未经测试的 Shell 中，可能引发未知错误"
         }
         # Show Sudo Current User
@@ -553,7 +562,7 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
         }
         if ($List -or $Clean) {
             if (-not (Get-SudoCurrentAdminRole)) {
-                Write-Host "等待用户批准管理员权限以继续查询或清理操作" -ForegroundColor Yellow
+                Show-SudoLocalizedMessage -MessageIdentifier "AdminApprovalRequired4AuxiliaryOperationsMessage" -ForegroundColor Yellow
                 Start-Sleep -Milliseconds 500 # Make Sure the user will see this message
                 $sudoHelpSetElevatedArgs = New-Object System.Collections.Generic.List[string]
                 $sudoHelpSetElevatedArgs.Add("-NoExit")
@@ -587,27 +596,29 @@ _____/\\\\\\\\\\\____/\\\________/\\\__/\\\\\\\\\\\\__________/\\\\\______
             # Not Admin
             } else {
                 # Search Windows Terminal
-                if (-not (Get-Variable -Name "isSudoWindowsTerminalExistenceChecked" -Scope Global -ErrorAction SilentlyContinue)) {
-                    $global:isSudoWindowsTerminalExistenceChecked = $false
-                    $global:isSudoWindowsTerminalExisted = $false
+                if (-not $script:SudoState.isSudoWindowsTerminalExistenceChecked) {
+                    $script:SudoState.isSudoWindowsTerminalExisted = (Get-Command "wt.exe" -ErrorAction SilentlyContinue)
+                    $script:SudoState.isSudoWindowsTerminalExistenceChecked = $true
                 }
-                if (-not $global:isSudoWindowsTerminalExistenceChecked) {
-                    $global:isSudoWindowsTerminalExisted = (Get-Command "wt.exe" -ErrorAction SilentlyContinue)
-                    $global:isSudoWindowsTerminalExistenceChecked = $true
-                }
-                # Start Windows Terminal if existed
-                if ($global:isSudoWindowsTerminalExisted) {
+                # Start Windows Terminal If Existed
+                if ($script:SudoState.isSudoWindowsTerminalExisted) {
                     try {
                         Start-Process -Verb RunAs wt.exe -ArgumentList "-p `"Windows PowerShell`" -d `"$currentWorkingDirectory`""
-                    # Fallback to Windows Powershell
                     } catch {
-                        Write-Error "提升Windows终端时出错: $($_.Exception.Message)"
-                        $global:isSudoWindowsTerminalExisted = $false
-                        Write-Warning "回退至powershell.exe执行，等待用户重新批准" 
-                        Start-Sleep -Milliseconds 500 # Make Sure the user will see this message
-                        Start-Process -Verb RunAs powershell.exe -ArgumentList "-NoExit -Command Set-Location -Path '$currentWorkingDirectory'"
+                        # Stop After Cancellation
+                        if ($_.Exception.Message -match "取消" -or $_.Exception.Message -match "canceled" -or $_.Exception.Message -match "cancelled" -or ($_.Exception -is [System.ComponentModel.Win32Exception] -and $_.Exception.NativeErrorCode -eq 1223)) {
+                            Show-SudoLocalizedMessage -MessageIdentifier "CancellationMessage" -ForegroundColor Yellow
+                            return
+                        # Fallback to Windows Powershell Except Cancellation
+                        } else {
+                            Write-Error "提升Windows终端时出错: $($_.Exception.Message)"
+                            $script:SudoState.isSudoWindowsTerminalExisted = $false
+                            Show-SudoLocalizedMessage -MessageIdentifier "FallBackWarning" -MessageType "Warning"
+                            Start-Sleep -Milliseconds 500 # Make Sure the user will see this message
+                            Start-Process -Verb RunAs powershell.exe -ArgumentList "-NoExit -Command Set-Location -Path '$currentWorkingDirectory'"
+                        }
                     }
-                # Start Windows Powershell
+                # Start Windows Powershell Directly If No Windows Terminal
                 } else {
                     Start-Process -Verb RunAs powershell.exe -ArgumentList "-NoExit -Command Set-Location -Path '$currentWorkingDirectory'"
                 }

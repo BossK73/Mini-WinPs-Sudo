@@ -1,6 +1,8 @@
 # Mini-WinPs-Sudo  
 [English](https://github.com/BossK73/Mini-WinPs-Sudo/blob/main/README.md)
 
+![image](https://github.com/BossK73/Mini-WinPs-Sudo/blob/main/Pictures4Readme/Run_Sudo_h_V0.0.5_CHS.png)
+
 ## 简介
 用于在 Windows 10 与 Windows 11 中以类 Linux 平台 Sudo 体验提升运行单条用户命令的轻量级 Windows PowerShell 5.1 脚本。
 
@@ -9,9 +11,7 @@
 ## 用法
 更改执行策略以允许 Windows PowerShell 执行脚本，将`Invoke-ElevatedCommand.ps1`的内容复制到 Windows PowerShell 5.1 的配置文件中。
 
-在新的 Windows PowerShell 会话中执行`sudo`命令。
-
-运行`sudo -h`获取更多帮助。
+打开新的 Windows PowerShell 会话，在要提升的命令前添加`sudo`，或执行`sudo -h`获取用法及帮助信息。
 
 目前仅在中文系统上测试过Sudo，如果遇到显示乱码问题，请尝试以`UTF8-BOM`编码重新保存 Windows PowerShell 的配置文件。
 
@@ -28,6 +28,8 @@ Mini-WinPs-Sudo 将在 Windows PowerShell 上覆盖同名的 Sudo-for-Windows，
 [V0.0.3](https://github.com/BossK73/Mini-WinPs-Sudo/releases/tag/V0.0.3) 增强安全性，减少条件判断开销，新增用于手动清理临时文件的`-c`参数。
 
 [V0.0.4](https://github.com/BossK73/Mini-WinPs-Sudo/releases/tag/V0.0.4) 向部分帮助信息添加实验性的中英双语显示特性，暂无向系统路径含特殊字符的区域格式如日语、朝鲜语添加支持的计划。
+
+[V0.0.5](https://github.com/BossK73/Mini-WinPs-Sudo/releases/tag/V0.0.5) 使用集中的哈希表储存并初始化状态及数据缓存，减少条件判断开销；为三处特定的消息添加了双语支持；移除无用的数组。先前版本中，非管理员用户仅执行`sudo`时，脚本会尝试提升新的终端，否则回退至powershell.exe。在这个版本，如果用户取消了操作，则不再尝试回退，而是直接退出，以避免不必要的UAC申请。
 
 ## 参考资料
 [about_profiles - Microsoft Learn](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-5.1)
